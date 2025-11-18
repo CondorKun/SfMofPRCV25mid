@@ -11,3 +11,5 @@
 
 
 整了半天两台电脑分别做更改，就是没法正常同步，还是把一边重新来好了。
+
+it is better to use CLI to pull(download) and push(upload).
