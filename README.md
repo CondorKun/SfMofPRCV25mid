@@ -17,3 +17,6 @@ it is better to use CLI to pull(download) and push(upload).
 Let's try pull and push on Linux!
 
 That's good! Successfully pull and push both on Win and Linux! It's time for coding!
+
+成功用win的gui上传并用linux的gui下载
+现在来试试用linux的gui上传并用win的gui下载
