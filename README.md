@@ -15,3 +15,5 @@
 it is better to use CLI to pull(download) and push(upload).
 
 Let's try pull and push on Linux!
+
+That's good! Successfully pull and push both on Win and Linux! It's time for coding!
