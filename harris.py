@@ -1,21 +1,27 @@
+# 
+# 
+'''
+该程序用于进行harris角点检测，并生成简单描述子
+
+输入：
+    image: 输入彩色图像 (BGR)
+    window_size: Harris响应窗口大小
+    descriptor_size: 描述子窗口大小 (必须是奇数，保证角点在窗口中心)
+    k: Harris常数
+    threshold_ratio: 响应阈值比例 (R.max() * threshold_ratio)
+
+    后面四项都有缺省值，所以秩只需指定图片
+
+输出：
+    corners: list of (x, y) 坐标
+    descriptors: numpy array, 每行对应一个角点的描述子
+'''
+
 import cv2
 import numpy as np
 
 def harris_features(image, window_size=3, descriptor_size=5, k=0.04, threshold_ratio=0.01):
-    """
-    Harris角点 + 简单描述子提取
     
-    Args:
-        image: 输入彩色图像 (BGR)
-        window_size: Harris响应窗口大小
-        descriptor_size: 描述子窗口大小 (必须是奇数，保证角点在窗口中心)
-        k: Harris常数
-        threshold_ratio: 响应阈值比例 (R.max() * threshold_ratio)
-        
-    Returns:
-        corners: list of (x, y) 坐标
-        descriptors: numpy array, 每行对应一个角点的描述子
-    """
     # 处理成灰度图
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = np.float32(gray)
@@ -52,5 +58,7 @@ def harris_features(image, window_size=3, descriptor_size=5, k=0.04, threshold_r
             patch = patch / norm
         descriptors.append(patch)
     descriptors = np.array(descriptors)
+
+    print("get harris")
 
     return corners, descriptors
