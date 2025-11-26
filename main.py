@@ -12,6 +12,7 @@ import triangulation
 import ba
 import rmpoints
 import reconstuction
+import visualization
 
 # 读取每张图 编号为234
 img2 = cv2.imread("images/00000022.jpg")
@@ -135,4 +136,15 @@ reconstuction.save_reconstruction(
     point_txt="outputs/points_final.txt",
     pose_txt="outputs/poses_final.txt",
     error_txt="outputs/errors_final.txt"
+)
+
+# 输出一个支持colmap的格式
+visualization.save_as_colmap(
+    points3D_clean,
+    obs_clean,
+    P_list_opt,
+    K_list,
+    image_names=["images/00000022.jpg","images/00000023.jpg","images/00000024.jpg"],
+    points_file="outputs/points_final.txt",
+    outdir="colmap_model"
 )
