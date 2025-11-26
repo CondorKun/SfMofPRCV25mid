@@ -5,7 +5,8 @@ import harris
 import match 
 import geo_veri
 import draw1
-#print(draw1.__file__)
+
+import initialization
 
 # 读取每张图
 img2 = cv2.imread("images/00000022.jpg")
@@ -48,3 +49,18 @@ cv2.imwrite("outputs/epi_34.png", epi_34)
 epi_24 = draw1.draw_epipolar_lines(img2, img4, F24, corners2, corners4, inlier_matches24)
 cv2.imwrite("outputs/epi_24.png", epi_24)
 '''
+
+# 初始化
+
+# 读取相机内外参
+# K是内参，可以直接用，R和t是外参，这里作为真值r保存
+K2, R2r, t2r = initialization.load_cam_file("images/00000022_cam.txt")
+K3, R3r, t3r = initialization.load_cam_file("images/00000023_cam.txt")
+K4, R4r, t4r = initialization.load_cam_file("images/00000024_cam.txt")
+
+# 第一波三角化：任意两张图
+# 这里选择23两张图
+# 得到：2和3的相机位姿P，估计的3外参R和t，23两图的点云，以及对应的角点编号
+P2, P3, R3, t3, points23, obs23 = initialize_with_two_views(
+    K2, corners2, corners3, matches23, F23
+)
