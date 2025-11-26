@@ -1,156 +1,100 @@
 import numpy as np
+import triangulation
 
-# PnP算法
-def pnp_linear_dlt(X3D, x2D, K):
+def project_points_np(X, K, R, t):
+    """ 将3D点投影到图像平面 """
+    X_h = np.hstack([X, np.ones((X.shape[0],1))])  # N x 4
+    P = K @ np.hstack([R, t.reshape(3,1)])         # 3x4
+    x_proj = (P @ X_h.T).T                         # N x 3
+    x_proj = x_proj[:,:2] / x_proj[:,2:3]
+    return x_proj
+
+def pnp_pure_np(X, x_obs, K, iterations=100, lr=1e-6):
     """
-    使用线性 DLT 实现 PnP
-    X3D: N×3 的 3D 点
-    x2D: N×2 的 像素点
-    K:   3×3 内参矩阵
-    返回:
-        R, t    （相机姿态）
+    纯NumPy PnP位姿估计
+    X: N x 3 3D点
+    x_obs: N x 2 对应2D点
+    K: 内参
+    返回: R, t
     """
+    # 初始化旋转向量 r 和平移 t
+    r = np.zeros(3)
+    t = np.zeros(3)
 
-    # 像素点归一化到归一化相机坐标
-    Kinv = np.linalg.inv(K)
-    x_norm = []
-    for u, v in x2D:
-        ray = Kinv @ np.array([u, v, 1.0])
-        x_norm.append(ray[:2] / ray[2])  # (xn, yn)
-    x_norm = np.array(x_norm)
+    for it in range(iterations):
+        theta = np.linalg.norm(r)
+        if theta < 1e-8:
+            R = np.eye(3)
+        else:
+            k = r / theta
+            Kx = np.array([[0,-k[2],k[1]],[k[2],0,-k[0]],[-k[1],k[0],0]])
+            R = np.eye(3) + np.sin(theta)*Kx + (1-np.cos(theta))*(Kx@Kx)
 
-    N = len(X3D)
-    A = []
+        x_proj = project_points_np(X, K, R, t)
+        error = x_proj - x_obs  # N x 2
 
-    for i in range(N):
-        X, Y, Z = X3D[i]
-        xn, yn = x_norm[i]
+        # 简单梯度下降，数值梯度
+        grad_r = np.zeros(3)
+        grad_t = np.zeros(3)
+        eps = 1e-6
+        for i in range(3):
+            dr = np.zeros(3); dr[i] = eps
+            theta_dr = np.linalg.norm(r + dr)
+            if theta_dr < 1e-8:
+                R_dr = np.eye(3)
+            else:
+                k = (r+dr)/theta_dr
+                Kx = np.array([[0,-k[2],k[1]],[k[2],0,-k[0]],[-k[1],k[0],0]])
+                R_dr = np.eye(3) + np.sin(theta_dr)*Kx + (1-np.cos(theta_dr))*(Kx@Kx)
+            x_proj_dr = project_points_np(X, K, R_dr, t)
+            grad_r[i] = np.sum((x_proj_dr - x_proj) * error) / eps
 
-        # 对应 PnP 的 DLT 方程
-        A.append([X, Y, Z, 1, 0, 0, 0, 0, -xn*X, -xn*Y, -xn*Z, -xn])
-        A.append([0, 0, 0, 0, X, Y, Z, 1, -yn*X, -yn*Y, -yn*Z, -yn])
+            dt = np.zeros(3); dt[i] = eps
+            x_proj_dt = project_points_np(X, K, R, t+dt)
+            grad_t[i] = np.sum((x_proj_dt - x_proj) * error) / eps
 
-    A = np.array(A)
-    _, _, Vt = np.linalg.svd(A)
-    P = Vt[-1].reshape(3, 4)
+        # 更新
+        r -= lr * grad_r
+        t -= lr * grad_t
 
-    # 分解 P = [R | t]
-    R = P[:, :3]
-    t = P[:, 3]
+    theta = np.linalg.norm(r)
+    if theta < 1e-8:
+        R_final = np.eye(3)
+    else:
+        k = r / theta
+        Kx = np.array([[0,-k[2],k[1]],[k[2],0,-k[0]],[-k[1],k[0],0]])
+        R_final = np.eye(3) + np.sin(theta)*Kx + (1-np.cos(theta))*(Kx@Kx)
+    return R_final, t
 
-    # 正交化 R （确保满足旋转矩阵条件）
-    U, _, Vt = np.linalg.svd(R)
-    R = U @ Vt
-
-    # 保证旋转矩阵右手系
-    if np.linalg.det(R) < 0:
-        R *= -1
-        t *= -1
-
-    # scale 不重要，仅方向和位置重要
-    return R, t
-
-# 图像特征点的3D-2D对应关系
-def compute_2D_3D_correspondences(points3d, obs12, matches23):
+def add_new_image_np(P_list, points3D, obs, corners_new, inlier_matches, K_new, corners_prev):
     """
-    points3d: 初始三角化的 3D 点
-    obs12: [(i1, i2)] 每个3D点对应图1和图2的角点编号
-    matches23: 图2与图3的 inlier 匹配
-
-    返回:
-        X3D: 3D 点 (M×3)
-        x3:  对应图3的像素点(M×2)
+    纯 NumPy 版本加入新图
     """
+    # Step 1: 找2D-3D对应
+    X_corr = []
+    x_new = []
+    match_indices = []
 
-    # 建立 图2角点编号 -> 在点云中对应的3D点编号
-    map_2d2_to_3d = {}
-    for idx, (i1, i2) in enumerate(obs12):
-        map_2d2_to_3d[i2] = idx
+    for idx_prev, idx_new in inlier_matches:
+        if idx_prev < len(points3D):
+            X_corr.append(points3D[idx_prev])
+            x_new.append(corners_new[idx_new])
+            match_indices.append(idx_prev)
 
-    X3D = []
-    x3 = []
+    X_corr = np.array(X_corr)
+    x_new = np.array(x_new)
 
-    for (i2, i3) in matches23:
-        if i2 in map_2d2_to_3d:
-            j = map_2d2_to_3d[i2]
-            X3D.append(points3d[j])
-            x3.append(corners3[i3])
+    # Step 2: 纯NumPy PnP求新图位姿
+    R_new, t_new = pnp_pure_np(X_corr, x_new, K_new)
 
-    return np.array(X3D), np.array(x3)
-
-
-
-def add_new_image(K_new, corners_new, matches_prev_new, sfm):
-    """
-    加入新图像（例如第3张图）
-
-    输入：
-        K_new  : 新图像内参
-        corners_new : 新图角点
-        matches_prev_new: 上一张图与新图的匹配，例如 matches23
-        sfm    : 当前 SfM 状态（包含：points3d, obs, P1, P2, ...）
-
-    输出：
-        更新后的 sfm（包含新的点云、P_new、新R,t等）
-    """
-
-    # --------------------------------------------------------
-    # Step 1：构建 2D-3D 对应关系（关键步骤）
-    # --------------------------------------------------------
-    points3d = sfm["points3d"]
-    obs = sfm["obs"]            # 每个点的 (i_prev) 记录
-    corners_prev = sfm["corners_prev"]   # 上一张图的角点
-    P_prev = sfm["P_prev"]
-
-    # 建立：上一张图角点编号 → 对应的3D点编号
-    map_prev_to_3d = {}
-    for p_idx, (i_prev, _) in enumerate(obs):
-        map_prev_to_3d[i_prev] = p_idx
-
-    X3D_list = []
-    x2D_list = []
-
-    for (i_prev, i_new) in matches_prev_new:
-        if i_prev in map_prev_to_3d:
-            p_idx = map_prev_to_3d[i_prev]
-            X3D_list.append(points3d[p_idx])
-            x2D_list.append(corners_new[i_new])
-
-    X3D_list = np.array(X3D_list)
-    x2D_list = np.array(x2D_list)
-
-    # --------------------------------------------------------
-    # Step 2：使用自写 PnP 求新图姿态
-    # --------------------------------------------------------
-    R_new, t_new = pnp_linear_dlt(X3D_list, x2D_list, K_new)
     P_new = K_new @ np.hstack([R_new, t_new.reshape(3,1)])
 
-    # --------------------------------------------------------
-    # Step 3：三角化新的点（System Grow）
-    # --------------------------------------------------------
-    new_points = []
-    new_obs = []
+    # Step 3: 三角化新点
+    for idx_prev, idx_new in inlier_matches:
+        if idx_prev >= len(points3D):
+            X = triangulation.triangulate_point(P_list[0], P_new, corners_prev[idx_prev], corners_new[idx_new])
+            points3D = np.vstack([points3D, X])
+            obs.append((idx_prev, idx_new))
 
-    for (i_prev, i_new) in matches_prev_new:
-        X = triangulate_point(P_prev, P_new, corners_prev[i_prev], corners_new[i_new])
-        new_points.append(X)
-        new_obs.append((i_prev, i_new))
-
-    new_points = np.array(new_points)
-
-    # --------------------------------------------------------
-    # Step 4：合并点云与观测
-    # --------------------------------------------------------
-    sfm["points3d"] = np.vstack([sfm["points3d"], new_points])
-    sfm["obs"]      = sfm["obs"] + new_obs
-
-    # --------------------------------------------------------
-    # Step 5：记录新相机状态
-    # --------------------------------------------------------
-    sfm["P_new"] = P_new
-    sfm["R_new"] = R_new
-    sfm["t_new"] = t_new
-    sfm["corners_prev"] = corners_new
-    sfm["P_prev"] = P_new
-
-    return sfm
+    P_list.append(P_new)
+    return P_new, points3D, obs

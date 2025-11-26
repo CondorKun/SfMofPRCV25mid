@@ -1,5 +1,6 @@
 import numpy as np
 
+# 第一次三角化
 def triangulate_point(P1, P2, x1, x2):
     """
     使用DLT算法三角化单个点

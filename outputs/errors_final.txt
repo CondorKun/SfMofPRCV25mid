@@ -1,0 +1,7 @@
+Number of 3D points: 781
+Image 0 mean reprojection error: 0
+Image 1 mean reprojection error: 0
+Image 2 mean reprojection error: 0
+Pose error image 0-1: rotation 33.85600866600221 deg, translation 107.52938632131809 deg
+Pose error image 0-2: rotation 73.67989838562289 deg, translation 87.80897098356918 deg
+Pose error image 1-2: rotation 101.6209483093953 deg, translation 80.5337856056484 deg
