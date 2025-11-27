@@ -4,15 +4,13 @@ import numpy as np
 import harris
 import match 
 import geo_veri
-import draw1
+import draw
 
 import initialization
 import addnew
-import triangulation
 import ba
 import rmpoints
 import reconstuction
-import visualization
 
 # 读取每张图 编号为234
 img2 = cv2.imread("images/00000022.jpg")
@@ -34,27 +32,27 @@ inlier_matches23, F23 = geo_veri.ransac_fundamental(corners2, corners3, matches2
 inlier_matches34, F34 = geo_veri.ransac_fundamental(corners3, corners4, matches34, thresh=50.0, max_iters=500)
 inlier_matches24, F24 = geo_veri.ransac_fundamental(corners2, corners4, matches24, thresh=50.0, max_iters=500)
 
-'''
+
 # 进行画图：特征点连线
-match_img_23 = draw1.draw_matches(img2, img3, corners2, corners3, inlier_matches23)
+match_img_23 = draw.draw_matches(img2, img3, corners2, corners3, inlier_matches23)
 cv2.imwrite("outputs/match_23.jpg", match_img_23)
 
-match_img_34 = draw1.draw_matches(img3, img4, corners3, corners4, inlier_matches34)
+match_img_34 = draw.draw_matches(img3, img4, corners3, corners4, inlier_matches34)
 cv2.imwrite("outputs/match_34.jpg", match_img_34)
 
-match_img_24 = draw1.draw_matches(img2, img4, corners2, corners4, inlier_matches24)
+match_img_24 = draw.draw_matches(img2, img4, corners2, corners4, inlier_matches24)
 cv2.imwrite("outputs/match_24.jpg", match_img_24)
 
 # 画图：可视化核线
-epi_23 = draw1.draw_epipolar_lines(img2, img3, F23, corners2, corners3, inlier_matches23)
+epi_23 = draw.draw_epipolar_lines(img2, img3, F23, corners2, corners3, inlier_matches23)
 cv2.imwrite("outputs/epi_23.png", epi_23)
 
-epi_34 = draw1.draw_epipolar_lines(img3, img4, F34, corners3, corners4, inlier_matches34)
+epi_34 = draw.draw_epipolar_lines(img3, img4, F34, corners3, corners4, inlier_matches34)
 cv2.imwrite("outputs/epi_34.png", epi_34)
 
-epi_24 = draw1.draw_epipolar_lines(img2, img4, F24, corners2, corners4, inlier_matches24)
+epi_24 = draw.draw_epipolar_lines(img2, img4, F24, corners2, corners4, inlier_matches24)
 cv2.imwrite("outputs/epi_24.png", epi_24)
-'''
+
 
 # 初始化
 
@@ -136,15 +134,4 @@ reconstuction.save_reconstruction(
     point_txt="outputs/points_final.txt",
     pose_txt="outputs/poses_final.txt",
     error_txt="outputs/errors_final.txt"
-)
-
-# 输出一个支持colmap的格式
-visualization.save_as_colmap(
-    points3D_clean,
-    obs_clean,
-    P_list_opt,
-    K_list,
-    image_names=["images/00000022.jpg","images/00000023.jpg","images/00000024.jpg"],
-    points_file="outputs/points_final.txt",
-    outdir="colmap_model"
 )

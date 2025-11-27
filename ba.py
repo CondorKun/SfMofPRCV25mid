@@ -9,7 +9,7 @@ def project_point(P, X):
     return x[:2] / x[2]
 
 # -------------------------------
-# 纯 NumPy BA 优化
+# BA 优化
 # -------------------------------
 def bundle_adjustment(P_list, points3D, obs, corner_list, max_iters=10, lr=1e-6):
     points3D = points3D.copy()
